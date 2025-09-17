@@ -1,0 +1,70 @@
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+*.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# Testing
+.pytest_cache/
+.coverage
+.tox/
+.nox/
+htmlcov/
+*.cover
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+*.swp
+*.swo
+*~
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Documentation
+docs/_build/
+site/
+
+# macOS
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+tmp/
+temp/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Project specific
+df-core-mcp/
+*.md
+!README.md
+CLAUDE.md
+USE_ARCADE_CLI.md
+DEPLOY_GUIDE.md
+FIX_DEPLOYMENT.md
+setup_arcade.sh
+test_connection.py
+arcade
