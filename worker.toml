@@ -29,8 +29,8 @@ python_version = "3.10"
 
 [worker.local_source]
 # Path to your toolkit package(s)
-# This should point to the directory containing your toolkit code
-packages = ["./arcade_dreamfactory"]
+# This should point to the directory containing your pyproject.toml
+packages = ["."]
 
 [worker.environment]
 # Environment variables (if needed)
