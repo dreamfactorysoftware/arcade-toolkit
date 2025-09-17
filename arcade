@@ -4,5 +4,5 @@
 # Get the directory of this script
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Run arcade from the virtual environment
-"$DIR/.venv/bin/arcade" "$@"
+# Run arcade from the virtual environment (now outside project)
+"$DIR/../.venv-arcade-toolkit/bin/arcade" "$@"
