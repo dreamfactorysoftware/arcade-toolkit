@@ -2,7 +2,7 @@
 
 [worker.config]
 id = "dreamfactory-toolkit"
-secret = "75ea4d70f4c3279b3d86ac4dcc0155f581db1353114a09118a2271ce092044ba"
+secret = 75ea4d70f4c3279b3d86ac4dcc0155f581db1353114a09118a2271ce092044ba
 
 [worker.local_source]
 packages = ["."]
