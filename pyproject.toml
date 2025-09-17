@@ -7,6 +7,9 @@ authors = ["thekevinm <kevin.mcgahey@dreamfactory.com>"]
 [tool.poetry.dependencies]
 python = "^3.10"
 arcade-ai = "^1.0.5"
+arcade-tdk = "^2.3.0"
+httpx = "^0.24.0"
+loguru = "^0.7.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^8.3.0"

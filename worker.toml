@@ -1,0 +1,50 @@
+[[worker]]
+# Worker configuration for DreamFactory Arcade Toolkit
+
+[worker.config]
+# Unique identifier for your worker
+id = "dreamfactory-toolkit"
+
+# Enable the worker
+enabled = true
+
+# Timeout in seconds for tool execution
+timeout = 30
+
+# Number of retries on failure
+retries = 3
+
+# Secret for authentication (will be generated on first deploy)
+# You can generate one with: openssl rand -hex 32
+secret = "your-worker-secret-will-be-generated"
+
+# Worker description
+description = "DreamFactory API management toolkit for database operations, file storage, and system administration"
+
+# Worker version
+version = "1.0.0"
+
+# Python version requirement
+python_version = "3.10"
+
+[worker.local_source]
+# Path to your toolkit package(s)
+# This should point to the directory containing your toolkit code
+packages = ["./arcade_dreamfactory"]
+
+[worker.environment]
+# Environment variables (if needed)
+# These are set on the worker, not secrets for tools
+LOG_LEVEL = "INFO"
+
+[worker.resources]
+# Resource limits (optional)
+memory = "512Mi"
+cpu = "500m"
+
+[worker.metadata]
+# Additional metadata
+author = "DreamFactory Integration Team"
+license = "MIT"
+homepage = "https://github.com/yourusername/arcade-dreamfactory-toolkit"
+tags = ["database", "api", "storage", "dreamfactory"]
