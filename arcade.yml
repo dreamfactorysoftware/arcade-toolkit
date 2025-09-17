@@ -1,0 +1,144 @@
+# Arcade Toolkit Configuration
+name: dreamfactory
+version: 1.0.0
+description: Comprehensive DreamFactory API management toolkit for database operations, file storage, and system administration
+
+# Toolkit metadata
+metadata:
+  author: DreamFactory Integration Team
+  license: MIT
+  homepage: https://github.com/yourusername/arcade-dreamfactory-toolkit
+  documentation: https://docs.arcade.dev/toolkits/dreamfactory
+  tags:
+    - database
+    - api
+    - storage
+    - dreamfactory
+    - mysql
+    - postgresql
+    - s3
+    - files
+
+# Required secrets
+secrets:
+  - name: DREAM_FACTORY_BASE_URL
+    description: DreamFactory instance URL (e.g., https://your-instance.dreamfactory.com)
+    required: true
+    type: url
+
+  - name: DREAM_FACTORY_API_KEY
+    description: System-level API key from DreamFactory
+    required: true
+    type: string
+    sensitive: true
+
+# Toolkit capabilities
+capabilities:
+  - name: System Management
+    description: Manage services, roles, and API keys
+    tools:
+      - list_services
+      - create_database_service
+      - create_role
+      - create_app
+      - create_database_api_complete
+
+  - name: Database Operations
+    description: Full CRUD operations on database tables
+    tools:
+      - list_database_tables
+      - get_table_schema
+      - query_database_table
+      - insert_records
+      - update_records
+      - delete_records
+      - execute_sql_query
+
+  - name: File Storage
+    description: Manage files across multiple storage backends
+    tools:
+      - list_storage_services
+      - list_files
+      - read_file
+      - write_file
+      - copy_file
+      - move_file
+      - delete_file
+      - search_files
+
+# Python package configuration
+package:
+  name: arcade_dreamfactory
+  entry_point: arcade_dreamfactory.tools
+  python_version: ">=3.10"
+
+# Dependencies
+dependencies:
+  - arcade-ai>=1.0.5
+  - httpx>=0.24.0
+  - loguru>=0.7.0
+
+# Development dependencies
+dev_dependencies:
+  - pytest>=8.3.0
+  - pytest-cov>=4.0.0
+  - mypy>=1.5.1
+  - ruff>=0.7.4
+
+# Deployment configuration
+deployment:
+  # Supported deployment targets
+  targets:
+    - cloud  # Arcade Cloud
+    - local  # Local development with arcade serve
+    - docker # Docker container
+
+  # Health check endpoint
+  health_check:
+    enabled: true
+    path: /health
+    interval: 30
+
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 100
+    burst: 20
+
+  # Logging
+  logging:
+    level: INFO
+    format: json
+
+# Tool examples for AI agents
+examples:
+  - name: "Complete Database API Setup"
+    description: "Create a full database API with service, role, and API key"
+    tool: create_database_api_complete
+    input:
+      service_name: "production_db"
+      database_type: "mysql"
+      host: "db.example.com"
+      database: "myapp"
+      username: "dbuser"
+      password: "secure_password"
+      access_level: "full"
+
+  - name: "Query Database Table"
+    description: "Retrieve filtered data from a table"
+    tool: query_database_table
+    input:
+      service_name: "mysql_prod"
+      table_name: "users"
+      filter: "age > 25 AND status = 'active'"
+      fields: ["id", "name", "email"]
+      limit: 50
+
+  - name: "Search Files"
+    description: "Search for files across storage"
+    tool: search_files
+    input:
+      storage_service: "local"
+      search_term: "report"
+      path: "/documents"
+      recursive: true
