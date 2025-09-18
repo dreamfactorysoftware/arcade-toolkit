@@ -1,0 +1,101 @@
+# Arcade Toolkit Configuration
+[toolkit]
+name = "dreamfactory"
+version = "1.0.0"
+description = "Comprehensive DreamFactory API management toolkit for database operations, file storage, and system administration"
+
+[toolkit.metadata]
+author = "DreamFactory Integration Team"
+license = "MIT"
+homepage = "https://github.com/yourusername/arcade-dreamfactory-toolkit"
+documentation = "https://docs.arcade.dev/toolkits/dreamfactory"
+tags = ["database", "api", "storage", "dreamfactory", "mysql", "postgresql", "s3", "files"]
+
+# Required secrets for the toolkit
+[[toolkit.secrets]]
+name = "DREAM_FACTORY_BASE_URL"
+description = "DreamFactory instance URL (e.g., https://your-instance.dreamfactory.com)"
+required = true
+type = "url"
+
+[[toolkit.secrets]]
+name = "DREAM_FACTORY_API_KEY"
+description = "System-level API key from DreamFactory"
+required = true
+type = "string"
+sensitive = true
+
+# Python package configuration
+[package]
+name = "arcade_dreamfactory"
+entry_point = "arcade_dreamfactory.tools"
+python_version = ">=3.10"
+
+# Dependencies
+[dependencies]
+arcade-tdk = ">=2.3.0"
+httpx = ">=0.24.0"
+loguru = ">=0.7.0"
+
+[dev-dependencies]
+pytest = ">=8.3.0"
+pytest-cov = ">=4.0.0"
+mypy = ">=1.5.1"
+ruff = ">=0.7.4"
+
+# Tool categories
+[[toolkit.categories]]
+name = "System Management"
+description = "Manage services, roles, and API keys"
+tools = [
+    "list_services",
+    "create_database_service",
+    "create_role",
+    "create_app",
+    "create_database_api_complete"
+]
+
+[[toolkit.categories]]
+name = "Database Operations"
+description = "Full CRUD operations on database tables"
+tools = [
+    "list_database_tables",
+    "get_table_schema",
+    "query_database_table",
+    "insert_records",
+    "update_records",
+    "delete_records",
+    "execute_sql_query"
+]
+
+[[toolkit.categories]]
+name = "File Storage"
+description = "Manage files across multiple storage backends"
+tools = [
+    "list_storage_services",
+    "list_files",
+    "read_file",
+    "write_file",
+    "copy_file",
+    "move_file",
+    "delete_file",
+    "search_files"
+]
+
+# Deployment configuration
+[deployment]
+targets = ["cloud", "local", "docker"]
+
+[deployment.health_check]
+enabled = true
+path = "/health"
+interval = 30
+
+[deployment.rate_limit]
+enabled = true
+requests_per_minute = 100
+burst = 20
+
+[deployment.logging]
+level = "INFO"
+format = "json"
