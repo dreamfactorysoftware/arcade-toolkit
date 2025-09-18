@@ -2,7 +2,7 @@
 
 import json
 import time
-from typing import Any, TypedDict
+from typing import Any, Optional, TypedDict, Union
 
 import httpx
 from arcade_tdk import ToolContext
@@ -179,11 +179,11 @@ def make_dreamfactory_request(
 
 def build_query_params(
     filter_str: str = "",
-    fields: str | list[str] = "*",
-    limit: int | None = None,
+    fields: Union[str, list] = "*",
+    limit: Optional[int] = None,
     offset: int = 0,
     order: str = "",
-    related: str | list[str] = "",
+    related: Union[str, list] = "",
     group: str = "",
     having: str = "",
     include_count: bool = False,

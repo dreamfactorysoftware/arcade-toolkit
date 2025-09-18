@@ -1,6 +1,6 @@
 """DreamFactory Database Operations Tools - Tables and Data Management."""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 from arcade_tdk import ToolContext, tool
 from arcade_tdk.errors import RetryableToolError, ToolExecutionError
@@ -123,11 +123,11 @@ def query_database_table(
     service_name: Annotated[str, "Name of the database service"],
     table_name: Annotated[str, "Name of the table to query"],
     filter: Annotated[str, "SQL WHERE clause style filter (e.g., \"age > 25 AND city = 'NYC'\")"] = "",
-    fields: Annotated[list[str] | None, "List of fields to return (None for all fields)"] = None,
-    limit: Annotated[int | None, "Maximum number of records to return (None for system default)"] = None,
+    fields: Annotated[Optional[list], "List of fields to return (None for all fields)"] = None,
+    limit: Annotated[Optional[int], "Maximum number of records to return (None for system default)"] = None,
     offset: Annotated[int, "Number of records to skip for pagination"] = 0,
     order: Annotated[str, "Field(s) to order by (e.g., 'created_at DESC, name ASC')"] = "",
-    related: Annotated[list[str] | None, "Related tables to include via joins"] = None,
+    related: Annotated[Optional[list], "Related tables to include via joins"] = None,
     include_count: Annotated[bool, "Include total count of matching records"] = False
 ) -> str:
     """Query data from a database table with filtering, sorting, and pagination.
@@ -194,7 +194,7 @@ def get_records_by_ids(
     table_name: Annotated[str, "Name of the table"],
     ids: Annotated[list[Any], "List of record IDs to retrieve"],
     id_field: Annotated[str, "Name of the ID field (e.g., 'id', 'user_id')"] = "id",
-    fields: Annotated[list[str] | None, "List of fields to return"] = None
+    fields: Annotated[Optional[list], "List of fields to return"] = None
 ) -> str:
     """Get specific records from a table by their IDs.
 

@@ -1,6 +1,6 @@
 """DreamFactory System Management Tools - Services, Roles, and Apps."""
 
-from typing import Annotated
+from typing import Annotated, Optional
 
 from arcade_tdk import ToolContext, tool
 from arcade_tdk.errors import RetryableToolError, ToolExecutionError
@@ -67,7 +67,7 @@ def list_services(
 @tool(requires_secrets=["DREAM_FACTORY_BASE_URL", "DREAM_FACTORY_API_KEY"])
 def get_service_details(
     context: ToolContext,
-    service_id: Annotated[int | str, "Service ID or name to get details for"]
+    service_id: Annotated[str, "Service ID or name to get details for"]
 ) -> str:
     """Get detailed information about a specific service.
 
@@ -98,7 +98,7 @@ def create_database_service(
     database: Annotated[str, "Database name to connect to"],
     username: Annotated[str, "Database username"],
     password: Annotated[str, "Database password"],
-    port: Annotated[int | None, "Database port (defaults: MySQL=3306, PostgreSQL=5432, SQL Server=1433)"] = None,
+    port: Annotated[Optional[int], "Database port (defaults: MySQL=3306, PostgreSQL=5432, SQL Server=1433)"] = None,
     description: Annotated[str, "Service description"] = "",
     schema_name: Annotated[str, "Schema name (for PostgreSQL/SQL Server)"] = "",
     charset: Annotated[str, "Character set (default: utf8mb4 for MySQL)"] = "",
@@ -196,7 +196,7 @@ def create_database_service(
 @tool(requires_secrets=["DREAM_FACTORY_BASE_URL", "DREAM_FACTORY_API_KEY"])
 def delete_service(
     context: ToolContext,
-    service_id: Annotated[int | str, "Service ID or name to delete"]
+    service_id: Annotated[str, "Service ID or name to delete"]
 ) -> str:
     """Delete a service from DreamFactory.
 
@@ -266,7 +266,7 @@ def create_role(
     name: Annotated[str, "Unique name for the role"],
     service_name: Annotated[str, "Service name to grant access to"],
     access_level: Annotated[str, "Access level: 'read', 'write', or 'full'"],
-    tables: Annotated[list[str] | None, "Specific tables to grant access to (None for all tables)"] = None,
+    tables: Annotated[Optional[list], "Specific tables to grant access to (None for all tables)"] = None,
     description: Annotated[str, "Role description"] = ""
 ) -> str:
     """Create a role with specific permissions for a service.
@@ -473,7 +473,7 @@ def create_database_api_complete(
     database: Annotated[str, "Database name"],
     username: Annotated[str, "Database username"],
     password: Annotated[str, "Database password"],
-    port: Annotated[int | None, "Database port (uses defaults if not specified)"] = None,
+    port: Annotated[Optional[int], "Database port (uses defaults if not specified)"] = None,
     role_name: Annotated[str, "Name for the role to create"] = "",
     app_name: Annotated[str, "Name for the app to create"] = "",
     access_level: Annotated[str, "Access level: 'read', 'write', or 'full'"] = "full"
