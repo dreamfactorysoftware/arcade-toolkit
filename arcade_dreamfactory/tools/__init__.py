@@ -49,7 +49,6 @@ from .file_tools import (
     move_file,
     read_file,
     search_files,
-    upload_file,
     write_file,
 )
 
@@ -80,7 +79,6 @@ __all__ = [
     "list_files",
     "read_file",
     "write_file",
-    "upload_file",
     "delete_file",
     "copy_file",
     "move_file",
