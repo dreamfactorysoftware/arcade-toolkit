@@ -123,11 +123,11 @@ def query_database_table(
     service_name: Annotated[str, "Name of the database service"],
     table_name: Annotated[str, "Name of the table to query"],
     filter: Annotated[str, "SQL WHERE clause style filter (e.g., \"age > 25 AND city = 'NYC'\")"] = "",
-    fields: Annotated[Optional[list], "List of fields to return (None for all fields)"] = None,
+    fields: Annotated[str, "Comma-separated list of fields to return (empty for all fields)"] = "",
     limit: Annotated[Optional[int], "Maximum number of records to return (None for system default)"] = None,
     offset: Annotated[int, "Number of records to skip for pagination"] = 0,
     order: Annotated[str, "Field(s) to order by (e.g., 'created_at DESC, name ASC')"] = "",
-    related: Annotated[Optional[list], "Related tables to include via joins"] = None,
+    related: Annotated[str, "Comma-separated list of related tables to include via joins"] = "",
     include_count: Annotated[bool, "Include total count of matching records"] = False
 ) -> str:
     """Query data from a database table with filtering, sorting, and pagination.
@@ -144,20 +144,25 @@ def query_database_table(
     Examples:
         Simple query: query_database_table("mysql_prod", "users", limit=10)
         With filter: query_database_table("mysql_prod", "users", filter="age > 25 AND active = true")
-        Specific fields: query_database_table("mysql_prod", "users", fields=["id", "name", "email"])
+        Specific fields: query_database_table("mysql_prod", "users", fields="id,name,email")
         With sorting: query_database_table("mysql_prod", "orders", order="created_at DESC", limit=100)
         With pagination: query_database_table("mysql_prod", "logs", limit=50, offset=100)
     """
     config = get_dreamfactory_config(context)
     headers = {"X-DreamFactory-API-Key": config["api_key"]}
 
+    # Parse fields from comma-separated string
+    field_list = fields.split(',') if fields else ["*"]
+    # Parse related from comma-separated string
+    related_str = related if related else ""
+
     params = build_query_params(
         filter_str=filter,
-        fields=fields or "*",
+        fields=",".join(field_list) if field_list != ["*"] else "*",
         limit=limit,
         offset=offset,
         order=order,
-        related=related or "",
+        related=related_str,
         include_count=include_count
     )
 
@@ -192,32 +197,50 @@ def get_records_by_ids(
     context: ToolContext,
     service_name: Annotated[str, "Name of the database service"],
     table_name: Annotated[str, "Name of the table"],
-    ids: Annotated[list[Any], "List of record IDs to retrieve"],
+    ids: Annotated[str, "Comma-separated list of record IDs to retrieve"],
     id_field: Annotated[str, "Name of the ID field (e.g., 'id', 'user_id')"] = "id",
-    fields: Annotated[Optional[list], "List of fields to return"] = None
+    fields: Annotated[str, "Comma-separated list of fields to return"] = ""
 ) -> str:
     """Get specific records from a table by their IDs.
 
     More efficient than using a filter when you know exact IDs.
 
     Examples:
-        Single ID: get_records_by_ids("mysql_prod", "users", [123])
-        Multiple IDs: get_records_by_ids("mysql_prod", "orders", [1, 2, 3, 4, 5])
-        Custom ID field: get_records_by_ids("mysql_prod", "products", ["ABC123"], id_field="sku")
+        Single ID: get_records_by_ids("mysql_prod", "users", "123")
+        Multiple IDs: get_records_by_ids("mysql_prod", "orders", "1,2,3,4,5")
+        Custom ID field: get_records_by_ids("mysql_prod", "products", "ABC123", id_field="sku")
     """
     config = get_dreamfactory_config(context)
     headers = {"X-DreamFactory-API-Key": config["api_key"]}
 
+    # Parse IDs from comma-separated string
+    id_list = [id.strip() for id in ids.split(',') if id.strip()]
+
     # Build ID filter
-    if len(ids) == 1:
-        filter_str = f"{id_field} = {ids[0]}" if isinstance(ids[0], (int, float)) else f"{id_field} = '{ids[0]}'"
+    if len(id_list) == 1:
+        # Try to determine if it's numeric
+        try:
+            float(id_list[0])
+            filter_str = f"{id_field} = {id_list[0]}"
+        except ValueError:
+            filter_str = f"{id_field} = '{id_list[0]}'"
     else:
-        id_list = ",".join(str(id) if isinstance(id, (int, float)) else f"'{id}'" for id in ids)
-        filter_str = f"{id_field} IN ({id_list})"
+        # Build IN clause
+        formatted_ids = []
+        for id_val in id_list:
+            try:
+                float(id_val)
+                formatted_ids.append(id_val)
+            except ValueError:
+                formatted_ids.append(f"'{id_val}'")
+        filter_str = f"{id_field} IN ({','.join(formatted_ids)})"
+
+    # Parse fields from comma-separated string
+    field_list = fields.split(',') if fields else ["*"]
 
     params = build_query_params(
         filter_str=filter_str,
-        fields=fields or "*"
+        fields=",".join(field_list) if field_list != ["*"] else "*"
     )
 
     response = make_dreamfactory_request(
@@ -232,11 +255,11 @@ def get_records_by_ids(
     return format_response({
         "service": service_name,
         "table": table_name,
-        "requested_ids": ids,
+        "requested_ids": id_list,
         "id_field": id_field,
         "records": records,
         "found": len(records),
-        "not_found": len(ids) - len(records) if len(records) < len(ids) else 0
+        "not_found": len(id_list) - len(records) if len(records) < len(id_list) else 0
     })
 
 
@@ -245,7 +268,7 @@ def insert_records(
     context: ToolContext,
     service_name: Annotated[str, "Name of the database service"],
     table_name: Annotated[str, "Name of the table to insert into"],
-    records: Annotated[list[dict], "List of records to insert (each record is a dictionary)"],
+    records: Annotated[str, "JSON string of records array to insert (e.g., '[{\"name\": \"John\"}]')"],
     return_created: Annotated[bool, "Return the created records with auto-generated IDs"] = True
 ) -> str:
     """Insert one or more records into a database table.
@@ -254,14 +277,25 @@ def insert_records(
     represents a row with column names as keys.
 
     Examples:
-        Single record: insert_records("mysql_prod", "users", [{"name": "John", "email": "john@example.com"}])
-        Multiple records: insert_records("mysql_prod", "logs", [{"event": "login"}, {"event": "logout"}])
+        Single record: insert_records("mysql_prod", "users", '[{"name": "John", "email": "john@example.com"}]')
+        Multiple records: insert_records("mysql_prod", "logs", '[{"event": "login"}, {"event": "logout"}]')
     """
     config = get_dreamfactory_config(context)
     headers = {"X-DreamFactory-API-Key": config["api_key"]}
 
+    # Parse JSON string to list of records
+    try:
+        record_list = json.loads(records) if isinstance(records, str) else records
+        if not isinstance(record_list, list):
+            record_list = [record_list]
+    except json.JSONDecodeError as e:
+        raise RetryableToolError(
+            f"Invalid JSON format for records: {e}",
+            additional_prompt_content="Provide records as a valid JSON array string"
+        )
+
     # DreamFactory expects records in a resource array
-    payload = {"resource": records}
+    payload = {"resource": record_list}
 
     # Add parameter to return created records
     params = {}
@@ -282,9 +316,9 @@ def insert_records(
         "success": True,
         "service": service_name,
         "table": table_name,
-        "inserted_count": len(created_records) if created_records else len(records),
+        "inserted_count": len(created_records) if created_records else len(record_list),
         "records": created_records if return_created else None,
-        "message": f"Successfully inserted {len(records)} record(s) into {table_name}"
+        "message": f"Successfully inserted {len(record_list)} record(s) into {table_name}"
     })
 
 
@@ -293,9 +327,9 @@ def update_records(
     context: ToolContext,
     service_name: Annotated[str, "Name of the database service"],
     table_name: Annotated[str, "Name of the table to update"],
-    updates: Annotated[dict, "Field-value pairs to update"],
+    updates: Annotated[str, "JSON string of field-value pairs to update (e.g., '{\"status\": \"active\"}')"],
     filter: Annotated[str, "SQL WHERE clause to identify records to update"] = "",
-    ids: Annotated[list[Any] | None, "Specific IDs to update (alternative to filter)"] = None,
+    ids: Annotated[str, "Comma-separated list of IDs to update (alternative to filter)"] = "",
     id_field: Annotated[str, "Name of the ID field if using ids parameter"] = "id",
     return_updated: Annotated[bool, "Return the updated records"] = True
 ) -> str:
@@ -304,20 +338,40 @@ def update_records(
     You must provide either a filter or specific IDs to identify which records to update.
 
     Examples:
-        Update by filter: update_records("mysql_prod", "users", {"active": False}, filter="last_login < '2023-01-01'")
-        Update by IDs: update_records("mysql_prod", "products", {"price": 99.99}, ids=[1, 2, 3])
-        Update single field: update_records("mysql_prod", "orders", {"status": "shipped"}, filter="id = 123")
+        Update by filter: update_records("mysql_prod", "users", '{"active": false}', filter="last_login < '2023-01-01'")
+        Update by IDs: update_records("mysql_prod", "products", '{"price": 99.99}', ids="1,2,3")
+        Update single field: update_records("mysql_prod", "orders", '{"status": "shipped"}', filter="id = 123")
     """
     config = get_dreamfactory_config(context)
     headers = {"X-DreamFactory-API-Key": config["api_key"]}
 
+    # Parse updates JSON string
+    try:
+        update_dict = json.loads(updates) if isinstance(updates, str) else updates
+    except json.JSONDecodeError as e:
+        raise RetryableToolError(
+            f"Invalid JSON format for updates: {e}",
+            additional_prompt_content="Provide updates as a valid JSON object string"
+        )
+
     # Build filter from IDs if provided
     if ids:
-        if len(ids) == 1:
-            filter = f"{id_field} = {ids[0]}" if isinstance(ids[0], (int, float)) else f"{id_field} = '{ids[0]}'"
+        id_list = [id.strip() for id in ids.split(',') if id.strip()]
+        if len(id_list) == 1:
+            try:
+                float(id_list[0])
+                filter = f"{id_field} = {id_list[0]}"
+            except ValueError:
+                filter = f"{id_field} = '{id_list[0]}'"
         else:
-            id_list = ",".join(str(id) if isinstance(id, (int, float)) else f"'{id}'" for id in ids)
-            filter = f"{id_field} IN ({id_list})"
+            formatted_ids = []
+            for id_val in id_list:
+                try:
+                    float(id_val)
+                    formatted_ids.append(id_val)
+                except ValueError:
+                    formatted_ids.append(f"'{id_val}'")
+            filter = f"{id_field} IN ({','.join(formatted_ids)})"
     elif not filter:
         raise RetryableToolError(
             "Must provide either 'filter' or 'ids' parameter",
@@ -330,7 +384,7 @@ def update_records(
         params["fields"] = "*"
 
     # DreamFactory expects updates in resource array format for batch updates
-    payload = {"resource": [updates]}
+    payload = {"resource": [update_dict]}
 
     response = make_dreamfactory_request(
         method="PATCH",
@@ -347,7 +401,7 @@ def update_records(
         "service": service_name,
         "table": table_name,
         "filter": filter,
-        "updates": updates,
+        "updates": update_dict,
         "updated_count": len(updated_records) if updated_records else "unknown",
         "records": updated_records if return_updated else None,
         "message": f"Successfully updated records in {table_name}"
@@ -360,7 +414,7 @@ def delete_records(
     service_name: Annotated[str, "Name of the database service"],
     table_name: Annotated[str, "Name of the table to delete from"],
     filter: Annotated[str, "SQL WHERE clause to identify records to delete"] = "",
-    ids: Annotated[list[Any] | None, "Specific IDs to delete (alternative to filter)"] = None,
+    ids: Annotated[str, "Comma-separated list of IDs to delete (alternative to filter)"] = "",
     id_field: Annotated[str, "Name of the ID field if using ids parameter"] = "id"
 ) -> str:
     """Delete records from a database table.
@@ -371,7 +425,7 @@ def delete_records(
 
     Examples:
         Delete by filter: delete_records("mysql_prod", "logs", filter="created_at < '2023-01-01'")
-        Delete by IDs: delete_records("mysql_prod", "users", ids=[123, 456])
+        Delete by IDs: delete_records("mysql_prod", "users", ids="123,456")
         Delete single record: delete_records("mysql_prod", "orders", filter="id = 789")
     """
     config = get_dreamfactory_config(context)
@@ -379,11 +433,22 @@ def delete_records(
 
     # Build filter from IDs if provided
     if ids:
-        if len(ids) == 1:
-            filter = f"{id_field} = {ids[0]}" if isinstance(ids[0], (int, float)) else f"{id_field} = '{ids[0]}'"
+        id_list = [id.strip() for id in ids.split(',') if id.strip()]
+        if len(id_list) == 1:
+            try:
+                float(id_list[0])
+                filter = f"{id_field} = {id_list[0]}"
+            except ValueError:
+                filter = f"{id_field} = '{id_list[0]}'"
         else:
-            id_list = ",".join(str(id) if isinstance(id, (int, float)) else f"'{id}'" for id in ids)
-            filter = f"{id_field} IN ({id_list})"
+            formatted_ids = []
+            for id_val in id_list:
+                try:
+                    float(id_val)
+                    formatted_ids.append(id_val)
+                except ValueError:
+                    formatted_ids.append(f"'{id_val}'")
+            filter = f"{id_field} IN ({','.join(formatted_ids)})"
     elif not filter:
         raise RetryableToolError(
             "Must provide either 'filter' or 'ids' parameter",
@@ -420,7 +485,7 @@ def execute_sql_query(
     context: ToolContext,
     service_name: Annotated[str, "Name of the database service"],
     sql: Annotated[str, "SQL query to execute"],
-    params: Annotated[dict | None, "Parameter values for prepared statement"] = None
+    params: Annotated[str, "JSON string of parameter values for prepared statement"] = ""
 ) -> str:
     """Execute a raw SQL query on the database (SELECT only for safety).
 
@@ -430,7 +495,7 @@ def execute_sql_query(
     Examples:
         Simple query: execute_sql_query("mysql_prod", "SELECT COUNT(*) FROM users")
         With joins: execute_sql_query("mysql_prod", "SELECT u.name, COUNT(o.id) FROM users u LEFT JOIN orders o ON u.id = o.user_id GROUP BY u.id")
-        With parameters: execute_sql_query("mysql_prod", "SELECT * FROM users WHERE age > :min_age", {"min_age": 25})
+        With parameters: execute_sql_query("mysql_prod", "SELECT * FROM users WHERE age > :min_age", '{"min_age": 25}')
     """
     config = get_dreamfactory_config(context)
     headers = {"X-DreamFactory-API-Key": config["api_key"]}
@@ -446,7 +511,15 @@ def execute_sql_query(
     # Build request payload
     payload = {"statement": sql}
     if params:
-        payload["params"] = params
+        try:
+            params_dict = json.loads(params) if isinstance(params, str) else params
+            if params_dict:  # Only add if not empty dict
+                payload["params"] = params_dict
+        except json.JSONDecodeError as e:
+            raise RetryableToolError(
+                f"Invalid JSON format for params: {e}",
+                additional_prompt_content="Provide params as a valid JSON object string"
+            )
 
     response = make_dreamfactory_request(
         method="POST",
@@ -466,7 +539,7 @@ def execute_sql_query(
     return format_response({
         "service": service_name,
         "sql": sql,
-        "params": params,
+        "params": json.loads(params) if params else None,
         "results": results,
         "row_count": len(results) if isinstance(results, list) else 1
     })
@@ -508,13 +581,13 @@ def call_stored_procedure(
     context: ToolContext,
     service_name: Annotated[str, "Name of the database service"],
     procedure_name: Annotated[str, "Name of the stored procedure to call"],
-    params: Annotated[dict | None, "Parameters to pass to the procedure"] = None
+    params: Annotated[str, "JSON string of parameters to pass to the procedure"] = ""
 ) -> str:
     """Call a stored procedure in the database.
 
     Examples:
         No parameters: call_stored_procedure("mysql_prod", "refresh_materialized_views")
-        With parameters: call_stored_procedure("mysql_prod", "calculate_user_stats", {"user_id": 123})
+        With parameters: call_stored_procedure("mysql_prod", "calculate_user_stats", '{"user_id": 123}')
     """
     config = get_dreamfactory_config(context)
     headers = {"X-DreamFactory-API-Key": config["api_key"]}
@@ -522,18 +595,26 @@ def call_stored_procedure(
     # Build request
     payload = {}
     if params:
-        payload["params"] = params
+        try:
+            params_dict = json.loads(params) if isinstance(params, str) else params
+            if params_dict:  # Only add if not empty dict
+                payload["params"] = params_dict
+        except json.JSONDecodeError as e:
+            raise RetryableToolError(
+                f"Invalid JSON format for params: {e}",
+                additional_prompt_content="Provide params as a valid JSON object string"
+            )
 
     response = make_dreamfactory_request(
         method="POST",
         url=f"{config['base_url']}/{service_name}/_proc/{procedure_name}",
         headers=headers,
-        json_data=payload if params else None
+        json_data=payload if payload else None
     )
 
     return format_response({
         "service": service_name,
         "procedure": procedure_name,
-        "params": params,
+        "params": json.loads(params) if params else None,
         "result": response
     })

@@ -266,7 +266,7 @@ def create_role(
     name: Annotated[str, "Unique name for the role"],
     service_name: Annotated[str, "Service name to grant access to"],
     access_level: Annotated[str, "Access level: 'read', 'write', or 'full'"],
-    tables: Annotated[Optional[list], "Specific tables to grant access to (None for all tables)"] = None,
+    tables: Annotated[str, "Comma-separated list of tables to grant access to (empty for all tables)"] = "",
     description: Annotated[str, "Role description"] = ""
 ) -> str:
     """Create a role with specific permissions for a service.
@@ -281,7 +281,7 @@ def create_role(
 
     Examples:
         Full access to all tables: create_role("admin_role", "mysql_prod", "full")
-        Read-only to specific tables: create_role("reporting", "mysql_prod", "read", tables=["users", "orders"])
+        Read-only to specific tables: create_role("reporting", "mysql_prod", "read", tables="users,orders")
         Write access to all tables: create_role("app_role", "postgres_db", "write")
     """
     config = get_dreamfactory_config(context)
@@ -302,6 +302,9 @@ def create_role(
 
     verb_mask = access_mapping[access_level]
 
+    # Parse tables from comma-separated string
+    table_list = [t.strip() for t in tables.split(',') if t.strip()] if tables else []
+
     # Build role configuration
     role_config = {
         "name": name,
@@ -310,7 +313,7 @@ def create_role(
         "role_service_access_by_role_id": [
             {
                 "service_id": service_name,
-                "component": "_table/*" if not tables else None,
+                "component": "_table/*" if not table_list else None,
                 "verb_mask": verb_mask,
                 "requestor_mask": 1,  # API access
                 "filters": [],
@@ -320,9 +323,9 @@ def create_role(
     }
 
     # If specific tables are provided, add individual permissions
-    if tables:
+    if table_list:
         role_config["role_service_access_by_role_id"] = []
-        for table in tables:
+        for table in table_list:
             role_config["role_service_access_by_role_id"].append({
                 "service_id": service_name,
                 "component": f"_table/{table}/*",
@@ -358,7 +361,7 @@ def create_role(
         "role_name": name,
         "service": service_name,
         "access_level": access_level,
-        "tables": tables or "all",
+        "tables": table_list if table_list else "all",
         "message": f"Role '{name}' created successfully with {access_level} access"
     })
 
