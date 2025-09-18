@@ -1,8 +1,0 @@
-#!/bin/bash
-# Wrapper script to use arcade CLI without activating venv
-
-# Get the directory of this script
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# Run arcade from the virtual environment (now outside project)
-"$DIR/../.venv-arcade-toolkit/bin/arcade" "$@"
