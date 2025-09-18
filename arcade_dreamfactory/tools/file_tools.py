@@ -4,6 +4,7 @@ import base64
 import json
 from typing import Annotated
 
+import httpx
 from arcade_tdk import ToolContext, tool
 from arcade_tdk.errors import RetryableToolError, ToolExecutionError
 from loguru import logger
@@ -201,18 +202,66 @@ def read_file(
     # Add parameter to get content (unless metadata_only)
     params = {"include_content": "false" if metadata_only else "true"}
 
-    response = make_dreamfactory_request(
-        method="GET",
-        url=f"{config['base_url']}/{storage_service}/{file_path}",
-        headers=headers,
-        params=params
-    )
+    # Make raw request to handle both wrapped and direct file responses
+    logger.debug(f"Reading file from {storage_service}:{file_path}")
+
+    try:
+        raw_response = httpx.get(
+            url=f"{config['base_url']}/{storage_service}/{file_path}",
+            headers=headers,
+            params=params,
+            timeout=30.0
+        )
+
+        if raw_response.status_code != 200:
+            # Handle errors through normal flow
+            response = make_dreamfactory_request(
+                method="GET",
+                url=f"{config['base_url']}/{storage_service}/{file_path}",
+                headers=headers,
+                params=params
+            )
+        else:
+            # For successful responses, check if it's wrapped or direct
+            content_type = raw_response.headers.get("content-type", "text/plain")
+
+            # Try to parse as JSON to see if it's a wrapped response
+            try:
+                response = raw_response.json()
+                # Check if it's a DreamFactory wrapped response
+                if isinstance(response, dict) and ("content" in response or "name" in response or "content_length" in response):
+                    # It's a wrapped DreamFactory response
+                    pass
+                else:
+                    # It's direct file content (JSON file)
+                    response = {
+                        "content": json.dumps(response) if isinstance(response, (dict, list)) else str(response),
+                        "content_type": content_type,
+                        "name": file_path.split('/')[-1],
+                        "content_length": len(raw_response.content)
+                    }
+            except json.JSONDecodeError:
+                # Non-JSON content - treat as direct file
+                response = {
+                    "content": raw_response.text,
+                    "content_type": content_type,
+                    "name": file_path.split('/')[-1],
+                    "content_length": len(raw_response.content)
+                }
+    except Exception as e:
+        # Fallback to original method
+        response = make_dreamfactory_request(
+            method="GET",
+            url=f"{config['base_url']}/{storage_service}/{file_path}",
+            headers=headers,
+            params=params
+        )
 
     # Build result with metadata
     result = {
         "storage_service": storage_service,
         "file_path": file_path,
-        "name": response.get("name"),
+        "name": response.get("name", file_path.split('/')[-1]),
         "content_type": response.get("content_type", "text/plain"),
         "size": response.get("content_length", 0),
         "modified": response.get("last_modified"),
