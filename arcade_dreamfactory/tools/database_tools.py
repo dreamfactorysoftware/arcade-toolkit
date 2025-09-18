@@ -1,5 +1,6 @@
 """DreamFactory Database Operations Tools - Tables and Data Management."""
 
+import json
 from typing import Annotated, Any, Optional
 
 from arcade_tdk import ToolContext, tool
@@ -123,6 +124,8 @@ def query_database_table(
     service_name: Annotated[str, "Name of the database service"],
     table_name: Annotated[str, "Name of the table to query"],
     filter: Annotated[str, "SQL WHERE clause style filter (e.g., \"age > 25 AND city = 'NYC'\")"] = "",
+    ids: Annotated[str, "Comma-separated list of record IDs to retrieve (alternative to filter)"] = "",
+    id_field: Annotated[str, "Name of the ID field when using ids parameter (e.g., 'id', 'user_id')"] = "id",
     fields: Annotated[str, "Comma-separated list of fields to return (empty for all fields)"] = "",
     limit: Annotated[Optional[int], "Maximum number of records to return (None for system default)"] = None,
     offset: Annotated[int, "Number of records to skip for pagination"] = 0,
@@ -133,7 +136,7 @@ def query_database_table(
     """Query data from a database table with filtering, sorting, and pagination.
 
     This is the primary tool for retrieving data from databases.
-    Supports complex filtering, field selection, and related data.
+    Supports complex filtering, field selection, ID-based queries, and related data.
 
     Filter syntax supports:
         - Logical: AND, OR, NOT (with parentheses)
@@ -144,12 +147,33 @@ def query_database_table(
     Examples:
         Simple query: query_database_table("mysql_prod", "users", limit=10)
         With filter: query_database_table("mysql_prod", "users", filter="age > 25 AND active = true")
+        By IDs: query_database_table("mysql_prod", "users", ids="1,2,3,4,5")
+        Custom ID field: query_database_table("mysql_prod", "products", ids="ABC123,DEF456", id_field="sku")
         Specific fields: query_database_table("mysql_prod", "users", fields="id,name,email")
         With sorting: query_database_table("mysql_prod", "orders", order="created_at DESC", limit=100)
         With pagination: query_database_table("mysql_prod", "logs", limit=50, offset=100)
     """
     config = get_dreamfactory_config(context)
     headers = {"X-DreamFactory-API-Key": config["api_key"]}
+
+    # Build filter from IDs if provided
+    if ids and not filter:
+        id_list = [id.strip() for id in ids.split(',') if id.strip()]
+        if len(id_list) == 1:
+            try:
+                float(id_list[0])
+                filter = f"{id_field} = {id_list[0]}"
+            except ValueError:
+                filter = f"{id_field} = '{id_list[0]}'"
+        elif len(id_list) > 1:
+            formatted_ids = []
+            for id_val in id_list:
+                try:
+                    float(id_val)
+                    formatted_ids.append(id_val)
+                except ValueError:
+                    formatted_ids.append(f"'{id_val}'")
+            filter = f"{id_field} IN ({','.join(formatted_ids)})"
 
     # Parse fields from comma-separated string
     field_list = fields.split(',') if fields else ["*"]
@@ -191,76 +215,6 @@ def query_database_table(
 
     return format_response(result)
 
-
-@tool(requires_secrets=["DREAM_FACTORY_BASE_URL", "DREAM_FACTORY_API_KEY"])
-def get_records_by_ids(
-    context: ToolContext,
-    service_name: Annotated[str, "Name of the database service"],
-    table_name: Annotated[str, "Name of the table"],
-    ids: Annotated[str, "Comma-separated list of record IDs to retrieve"],
-    id_field: Annotated[str, "Name of the ID field (e.g., 'id', 'user_id')"] = "id",
-    fields: Annotated[str, "Comma-separated list of fields to return"] = ""
-) -> str:
-    """Get specific records from a table by their IDs.
-
-    More efficient than using a filter when you know exact IDs.
-
-    Examples:
-        Single ID: get_records_by_ids("mysql_prod", "users", "123")
-        Multiple IDs: get_records_by_ids("mysql_prod", "orders", "1,2,3,4,5")
-        Custom ID field: get_records_by_ids("mysql_prod", "products", "ABC123", id_field="sku")
-    """
-    config = get_dreamfactory_config(context)
-    headers = {"X-DreamFactory-API-Key": config["api_key"]}
-
-    # Parse IDs from comma-separated string
-    id_list = [id.strip() for id in ids.split(',') if id.strip()]
-
-    # Build ID filter
-    if len(id_list) == 1:
-        # Try to determine if it's numeric
-        try:
-            float(id_list[0])
-            filter_str = f"{id_field} = {id_list[0]}"
-        except ValueError:
-            filter_str = f"{id_field} = '{id_list[0]}'"
-    else:
-        # Build IN clause
-        formatted_ids = []
-        for id_val in id_list:
-            try:
-                float(id_val)
-                formatted_ids.append(id_val)
-            except ValueError:
-                formatted_ids.append(f"'{id_val}'")
-        filter_str = f"{id_field} IN ({','.join(formatted_ids)})"
-
-    # Parse fields from comma-separated string
-    field_list = fields.split(',') if fields else ["*"]
-
-    params = build_query_params(
-        filter_str=filter_str,
-        fields=",".join(field_list) if field_list != ["*"] else "*"
-    )
-
-    response = make_dreamfactory_request(
-        method="GET",
-        url=f"{config['base_url']}/{service_name}/_table/{table_name}",
-        headers=headers,
-        params=params
-    )
-
-    records = response.get("resource", [])
-
-    return format_response({
-        "service": service_name,
-        "table": table_name,
-        "requested_ids": id_list,
-        "id_field": id_field,
-        "records": records,
-        "found": len(records),
-        "not_found": len(id_list) - len(records) if len(records) < len(id_list) else 0
-    })
 
 
 @tool(requires_secrets=["DREAM_FACTORY_BASE_URL", "DREAM_FACTORY_API_KEY"])
@@ -480,141 +434,3 @@ def delete_records(
     })
 
 
-@tool(requires_secrets=["DREAM_FACTORY_BASE_URL", "DREAM_FACTORY_API_KEY"])
-def execute_sql_query(
-    context: ToolContext,
-    service_name: Annotated[str, "Name of the database service"],
-    sql: Annotated[str, "SQL query to execute"],
-    params: Annotated[str, "JSON string of parameter values for prepared statement"] = ""
-) -> str:
-    """Execute a raw SQL query on the database (SELECT only for safety).
-
-    Use this for complex queries that can't be expressed with the standard tools.
-    Only SELECT statements are allowed through this interface for safety.
-
-    Examples:
-        Simple query: execute_sql_query("mysql_prod", "SELECT COUNT(*) FROM users")
-        With joins: execute_sql_query("mysql_prod", "SELECT u.name, COUNT(o.id) FROM users u LEFT JOIN orders o ON u.id = o.user_id GROUP BY u.id")
-        With parameters: execute_sql_query("mysql_prod", "SELECT * FROM users WHERE age > :min_age", '{"min_age": 25}')
-    """
-    config = get_dreamfactory_config(context)
-    headers = {"X-DreamFactory-API-Key": config["api_key"]}
-
-    # Safety check - only allow SELECT queries
-    sql_lower = sql.strip().lower()
-    if not sql_lower.startswith("select"):
-        raise ToolExecutionError(
-            "Only SELECT queries are allowed through this interface",
-            additional_prompt_content="Use insert_records, update_records, or delete_records for data modifications"
-        )
-
-    # Build request payload
-    payload = {"statement": sql}
-    if params:
-        try:
-            params_dict = json.loads(params) if isinstance(params, str) else params
-            if params_dict:  # Only add if not empty dict
-                payload["params"] = params_dict
-        except json.JSONDecodeError as e:
-            raise RetryableToolError(
-                f"Invalid JSON format for params: {e}",
-                additional_prompt_content="Provide params as a valid JSON object string"
-            )
-
-    response = make_dreamfactory_request(
-        method="POST",
-        url=f"{config['base_url']}/{service_name}/_sql",
-        headers=headers,
-        json_data=payload
-    )
-
-    # Extract results
-    if "resource" in response:
-        results = response["resource"]
-    elif "result" in response:
-        results = response["result"]
-    else:
-        results = response
-
-    return format_response({
-        "service": service_name,
-        "sql": sql,
-        "params": json.loads(params) if params else None,
-        "results": results,
-        "row_count": len(results) if isinstance(results, list) else 1
-    })
-
-
-@tool(requires_secrets=["DREAM_FACTORY_BASE_URL", "DREAM_FACTORY_API_KEY"])
-def get_stored_procedures(
-    context: ToolContext,
-    service_name: Annotated[str, "Name of the database service"]
-) -> str:
-    """List all stored procedures available in a database service.
-
-    Use this to discover what stored procedures can be called.
-
-    Examples:
-        get_stored_procedures("mysql_prod")
-        get_stored_procedures("sqlserver_db")
-    """
-    config = get_dreamfactory_config(context)
-    headers = {"X-DreamFactory-API-Key": config["api_key"]}
-
-    response = make_dreamfactory_request(
-        method="GET",
-        url=f"{config['base_url']}/{service_name}/_proc",
-        headers=headers
-    )
-
-    procedures = response.get("resource", [])
-
-    return format_response({
-        "service": service_name,
-        "procedures": procedures,
-        "count": len(procedures)
-    })
-
-
-@tool(requires_secrets=["DREAM_FACTORY_BASE_URL", "DREAM_FACTORY_API_KEY"])
-def call_stored_procedure(
-    context: ToolContext,
-    service_name: Annotated[str, "Name of the database service"],
-    procedure_name: Annotated[str, "Name of the stored procedure to call"],
-    params: Annotated[str, "JSON string of parameters to pass to the procedure"] = ""
-) -> str:
-    """Call a stored procedure in the database.
-
-    Examples:
-        No parameters: call_stored_procedure("mysql_prod", "refresh_materialized_views")
-        With parameters: call_stored_procedure("mysql_prod", "calculate_user_stats", '{"user_id": 123}')
-    """
-    config = get_dreamfactory_config(context)
-    headers = {"X-DreamFactory-API-Key": config["api_key"]}
-
-    # Build request
-    payload = {}
-    if params:
-        try:
-            params_dict = json.loads(params) if isinstance(params, str) else params
-            if params_dict:  # Only add if not empty dict
-                payload["params"] = params_dict
-        except json.JSONDecodeError as e:
-            raise RetryableToolError(
-                f"Invalid JSON format for params: {e}",
-                additional_prompt_content="Provide params as a valid JSON object string"
-            )
-
-    response = make_dreamfactory_request(
-        method="POST",
-        url=f"{config['base_url']}/{service_name}/_proc/{procedure_name}",
-        headers=headers,
-        json_data=payload if payload else None
-    )
-
-    return format_response({
-        "service": service_name,
-        "procedure": procedure_name,
-        "params": json.loads(params) if params else None,
-        "result": response
-    })
